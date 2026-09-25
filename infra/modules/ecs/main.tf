@@ -1,0 +1,96 @@
+variable "name" {
+  type = string
+}
+
+variable "subnet_ids" {
+  type = list(string)
+}
+
+variable "security_group_ids" {
+  type = list(string)
+}
+
+variable "target_group_arn" {
+  type = string
+}
+
+variable "cpu" {
+  type = number
+}
+
+variable "memory" {
+  type = number
+}
+
+variable "desired_count" {
+  type = number
+}
+
+resource "aws_iam_role" "execution" {
+  name = "${var.name}-ecs-execution-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "ecs-tasks.amazonaws.com"
+      }
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "execution" {
+  role       = aws_iam_role.execution.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+resource "aws_ecs_cluster" "this" {
+  name = "${var.name}-cluster"
+}
+
+resource "aws_ecs_task_definition" "this" {
+  family                   = "${var.name}-task"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = var.cpu
+  memory                   = var.memory
+  execution_role_arn       = aws_iam_role.execution.arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "app"
+      image     = "nginx:alpine"
+      essential = true
+      portMappings = [
+        {
+          containerPort = 80
+          protocol      = "tcp"
+        }
+      ]
+    }
+  ])
+}
+
+resource "aws_ecs_service" "this" {
+  name            = "${var.name}-service"
+  cluster         = aws_ecs_cluster.this.id
+  task_definition = aws_ecs_task_definition.this.arn
+  desired_count   = var.desired_count
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets          = var.subnet_ids
+    security_groups  = var.security_group_ids
+    assign_public_ip = false
+  }
+
+  load_balancer {
+    target_group_arn = var.target_group_arn
+    container_name   = "app"
+    container_port   = 80
+  }
+
+  depends_on = [aws_iam_role_policy_attachment.execution]
+}
