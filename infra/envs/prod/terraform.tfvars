@@ -1,0 +1,11 @@
+region                 = "ap-south-1"
+vpc_cidr               = "10.20.0.0/16"
+azs                    = ["ap-south-1a", "ap-south-1b"]
+ecs_cpu                = 512
+ecs_memory             = 1024
+ecs_desired_count      = 2
+db_instance_class      = "db.t3.medium"
+db_allocated_storage   = 100
+db_backup_retention    = 7
+db_deletion_protection = true
+db_password            = "YOUR_DB_PASSWORD"
